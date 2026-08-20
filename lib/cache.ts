@@ -2,7 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
-const TTL_MS = 10 * 60 * 1000; // 10분
+
+/** 실시간 측정치: 원천이 매시 정각 갱신되므로 20분이면 신선도(최대 1시간) 요건 충족 */
+export const REALTIME_TTL_MS = 20 * 60 * 1000;
+/** 예보: 하루 4회(05/11/17/23시) 발표 → 2시간 */
+export const FORECAST_TTL_MS = 2 * 60 * 60 * 1000;
+
+const DEFAULT_TTL_MS = REALTIME_TTL_MS;
 
 interface CacheEntry<T> {
   data: T;
@@ -45,18 +51,15 @@ function writeFileCache<T>(key: string, entry: CacheEntry<T>) {
   }
 }
 
-export interface CacheResult<T> {
-  data: T;
-  stale: boolean;
-}
-
 /**
  * key에 대한 캐시를 조회한다.
  * fresh: TTL 이내의 최신 데이터
- * stale: TTL은 지났지만 존재하는 마지막 성공 데이터 (fallback용)
- * miss: 캐시 없음
+ * stale: TTL은 지났지만 존재하는 마지막 성공 데이터 (원천 API 장애 시 폴백용)
  */
-export function getCache<T>(key: string): { fresh: T | null; stale: T | null } {
+export function getCache<T>(
+  key: string,
+  ttlMs: number = DEFAULT_TTL_MS
+): { fresh: T | null; stale: T | null; savedAt: number | null } {
   let entry = memoryCache.get(key) as CacheEntry<T> | undefined;
   if (!entry) {
     const fileEntry = readFileCache<T>(key);
@@ -65,12 +68,13 @@ export function getCache<T>(key: string): { fresh: T | null; stale: T | null } {
       memoryCache.set(key, fileEntry);
     }
   }
-  if (!entry) return { fresh: null, stale: null };
+  if (!entry) return { fresh: null, stale: null, savedAt: null };
 
-  const isFresh = Date.now() - entry.savedAt < TTL_MS;
+  const isFresh = Date.now() - entry.savedAt < ttlMs;
   return {
     fresh: isFresh ? entry.data : null,
     stale: entry.data,
+    savedAt: entry.savedAt,
   };
 }
 

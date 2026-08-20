@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AirKoreaApiError, AirKoreaConfigError, fetchRealtimeMeasurement } from "@/lib/airkorea";
-import { getCache, setCache } from "@/lib/cache";
+import { getCache, REALTIME_TTL_MS, setCache } from "@/lib/cache";
 import { findSidoByCode } from "@/lib/sido";
 import type { AirQualityData } from "@/lib/types";
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const cacheKey = `air-quality:${sido.code}`;
-  const { fresh, stale } = getCache<AirQualityData>(cacheKey);
+  const { fresh, stale } = getCache<AirQualityData>(cacheKey, REALTIME_TTL_MS);
 
   if (fresh) {
     return NextResponse.json(fresh);

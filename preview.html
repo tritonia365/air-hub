@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>에어허브 | 시도별 미세먼지 정보 (샘플 미리보기)</title>
+<style>
+* { box-sizing: border-box; }
+body{margin:0;color:#1a1a1a;background:#f5f7fa;font-family:-apple-system,"Malgun Gothic",Segoe UI,sans-serif;}
+.wrap{min-height:100vh;display:flex;flex-direction:column;}
+header{border-bottom:1px solid #e2e8f0;background:#fff;position:sticky;top:0;}
+.header-inner{max-width:1152px;margin:0 auto;padding:16px;display:flex;align-items:center;gap:8px;}
+.logo{font-size:24px;}
+h1{font-size:18px;font-weight:700;color:#0f172a;margin:0;line-height:1.2;}
+.sub{font-size:12px;color:#64748b;margin:0;line-height:1.2;}
+.notice{margin-left:auto;border-radius:9999px;background:#fef3c7;padding:4px 10px;font-size:12px;font-weight:500;color:#b45309;}
+main{flex:1;max-width:1152px;margin:0 auto;width:100%;padding:24px 16px;}
+.layout{display:flex;flex-direction:column;gap:24px;}
+@media(min-width:768px){.layout{flex-direction:row;align-items:flex-start;}}
+.sidebar{width:100%;}
+@media(min-width:768px){.sidebar{width:320px;flex-shrink:0;}}
+.section-title{font-size:12px;font-weight:600;color:#94a3b8;margin:0 0 6px 4px;}
+.chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+@media(min-width:768px){.chip-row{flex-wrap:wrap;}}
+.chip{position:relative;flex-shrink:0;border-radius:9999px;border:1px solid #e2e8f0;background:#fff;color:#334155;}
+.chip.active{border-color:#0ea5e9;background:#0ea5e9;color:#fff;}
+.chip button.name{border:0;background:none;padding:8px 30px 8px 16px;font-size:14px;font-weight:500;border-radius:9999px;cursor:pointer;color:inherit;}
+.chip button.star{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:14px;cursor:pointer;color:#cbd5e1;}
+.chip.active button.star{color:#fff;}
+.panel{flex:1;border-radius:16px;border:1px solid #e2e8f0;background:#fff;padding:24px;}
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.city{font-size:20px;font-weight:700;color:#0f172a;margin:0;}
+.meta{font-size:12px;color:#64748b;margin:2px 0 0;}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:9999px;font-weight:600;color:#fff;}
+.badge .dot{width:8px;height:8px;border-radius:9999px;background:rgba(255,255,255,.8);}
+.badge.lg{padding:6px 16px;font-size:16px;}
+.badge.sm{padding:2px 8px;font-size:12px;}
+.cards{display:flex;gap:12px;margin-top:20px;}
+.card{flex:1;border-radius:12px;border:1px solid #e2e8f0;background:#fff;padding:16px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:140px;}
+.card .label{font-size:14px;font-weight:500;color:#64748b;}
+.card .value{font-size:30px;font-weight:700;color:#0f172a;}
+.card .unit{margin-left:4px;font-size:14px;font-weight:400;color:#94a3b8;}
+.fc-section{margin-top:20px;}
+.fc-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.fc-head h3{font-size:14px;font-weight:600;color:#475569;margin:0;}
+.fc-head span{font-size:11px;color:#94a3b8;}
+.fc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.fc-card{border-radius:12px;border:1px solid #e2e8f0;background:#fff;padding:12px;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.fc-card .day{font-size:14px;font-weight:500;color:#475569;}
+.guide{margin-top:20px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;padding:16px;}
+.guide h3{font-size:14px;font-weight:600;color:#475569;margin:0 0 4px;}
+.guide p{font-size:14px;color:#334155;line-height:1.6;margin:0;}
+footer{border-top:1px solid #e2e8f0;background:#fff;}
+.footer-inner{max-width:1152px;margin:0 auto;padding:16px;font-size:12px;color:#94a3b8;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="header-inner">
+      <span class="logo">🌤️</span>
+      <div>
+        <h1>에어허브</h1>
+        <p class="sub">시도별 미세먼지 정보</p>
+      </div>
+      <span class="notice">샘플 데이터 미리보기 (실 API 리밋 대기 중)</span>
+    </div>
+  </header>
+  <main>
+    <div class="layout">
+      <div class="sidebar">
+        <div id="favGroup" style="display:none;margin-bottom:12px;">
+          <p class="section-title">즐겨찾기</p>
+          <div id="favChips" class="chip-row"></div>
+        </div>
+        <div>
+          <p class="section-title">전체 시/도</p>
+          <div id="allChips" class="chip-row"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div id="panel"></div>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <div class="footer-inner">데이터 출처: 한국환경공단 에어코리아(공공데이터포털) · 개인 프로젝트/포트폴리오용 · 본 화면은 샘플 데이터입니다</div>
+  </footer>
+</div>
+<script>
+var GRADE_LABEL={good:"좋음",moderate:"보통",bad:"나쁨","very-bad":"매우나쁨"};
+var GRADE_COLOR={good:"#4A90D9",moderate:"#5CB85C",bad:"#F0AD4E","very-bad":"#D9534F"};
+var GUIDE={good:"실외활동에 제한이 필요하지 않습니다.",moderate:"민감군은 장시간·무리한 실외활동을 다소 제한하는 것이 좋습니다.",bad:"민감군은 실외활동을 제한하고, 일반인은 장시간 실외활동을 자제하는 것이 좋습니다.","very-bad":"민감군은 실외활동을 금지하고, 일반인도 가급적 실외활동을 자제하며 마스크 착용을 권고합니다."};
+var SIDOS=[
+ {code:"seoul",name:"서울",pm10:40,pm25:31,g10:"moderate",g25:"moderate",stations:39,time:"16:00",overall:"moderate",fc:["good","moderate","moderate"]},
+ {code:"busan",name:"부산",pm10:22,pm25:12,g10:"good",g25:"good",stations:18,time:"16:00",overall:"good",fc:["good","good","moderate"]},
+ {code:"daegu",name:"대구",pm10:35,pm25:19,g10:"moderate",g25:"moderate",stations:14,time:"16:00",overall:"moderate",fc:["moderate","moderate","good"]},
+ {code:"incheon",name:"인천",pm10:44,pm25:29,g10:"moderate",g25:"moderate",stations:16,time:"16:00",overall:"moderate",fc:["good","moderate","moderate"]},
+ {code:"gwangju",name:"광주",pm10:18,pm25:9,g10:"good",g25:"good",stations:8,time:"16:00",overall:"good",fc:["good","good","good"]},
+ {code:"daejeon",name:"대전",pm10:29,pm25:16,g10:"good",g25:"moderate",stations:7,time:"16:00",overall:"moderate",fc:["good","moderate","moderate"]},
+ {code:"ulsan",name:"울산",pm10:26,pm25:14,g10:"good",g25:"good",stations:10,time:"16:00",overall:"good",fc:["good","good","good"]},
+ {code:"sejong",name:"세종",pm10:31,pm25:20,g10:"moderate",g25:"moderate",stations:4,time:"16:00",overall:"moderate",fc:["moderate","moderate","good"]},
+ {code:"gyeonggi",name:"경기",pm10:47,pm25:33,g10:"moderate",g25:"moderate",stations:62,time:"16:00",overall:"moderate",fc:["moderate","good","moderate"]},
+ {code:"gangwon",name:"강원",pm10:88,pm25:41,g10:"bad",g25:"bad",stations:19,time:"16:00",overall:"bad",fc:["bad","moderate","good"]},
+ {code:"chungbuk",name:"충북",pm10:33,pm25:21,g10:"moderate",g25:"moderate",stations:11,time:"16:00",overall:"moderate",fc:["moderate","moderate","good"]},
+ {code:"chungnam",name:"충남",pm10:52,pm25:35,g10:"moderate",g25:"moderate",stations:20,time:"16:00",overall:"moderate",fc:["moderate","bad","moderate"]},
+ {code:"jeonbuk",name:"전북",pm10:36,pm25:22,g10:"moderate",g25:"moderate",stations:11,time:"16:00",overall:"moderate",fc:["good","moderate","good"]},
+ {code:"jeonnam",name:"전남",pm10:24,pm25:13,g10:"good",g25:"good",stations:22,time:"16:00",overall:"good",fc:["good","good","good"]},
+ {code:"gyeongbuk",name:"경북",pm10:41,pm25:24,g10:"moderate",g25:"moderate",stations:19,time:"16:00",overall:"moderate",fc:["moderate","moderate","good"]},
+ {code:"gyeongnam",name:"경남",pm10:30,pm25:17,g10:"good",g25:"moderate",stations:19,time:"16:00",overall:"moderate",fc:["good","moderate","good"]},
+ {code:"jeju",name:"제주",pm10:15,pm25:8,g10:"good",g25:"good",stations:8,time:"16:00",overall:"good",fc:["good","good","good"]}
+];
+var MAX_FAV=5;
+var selected="seoul";
+var favorites=[];
+try{favorites=JSON.parse(localStorage.getItem("air-hub-preview:favorites")||"[]");}catch(e){favorites=[];}
+
+function esc(s){return String(s);}
+
+function badgeHtml(grade,size){
+  var cls="badge "+size;
+  return '<span class="'+cls+'" style="background-color:'+GRADE_COLOR[grade]+'"><span class="dot"></span>'+GRADE_LABEL[grade]+'</span>';
+}
+
+function chipHtml(s,active){
+  var isFav=favorites.indexOf(s.code)>-1;
+  return '<div class="chip'+(active?' active':'')+'">'
+    +'<button class="name" onclick="select(\''+s.code+'\')">'+s.name+'</button>'
+    +'<button class="star" onclick="event.stopPropagation();toggleFav(\''+s.code+'\')">'+(isFav?'★':'☆')+'</button>'
+    +'</div>';
+}
+
+function toggleFav(code){
+  var idx=favorites.indexOf(code);
+  if(idx>-1){ favorites.splice(idx,1); }
+  else if(favorites.length<MAX_FAV){ favorites.push(code); }
+  else { alert("즐겨찾기는 최대 "+MAX_FAV+"개까지 등록할 수 있습니다."); return; }
+  try{localStorage.setItem("air-hub-preview:favorites",JSON.stringify(favorites));}catch(e){}
+  render();
+}
+
+function select(code){ selected=code; render(); }
+window.select=select;
+window.toggleFav=toggleFav;
+
+function findSido(code){
+  for(var i=0;i<SIDOS.length;i++){ if(SIDOS[i].code===code) return SIDOS[i]; }
+  return SIDOS[0];
+}
+
+function render(){
+  var favSidos=[];
+  for(var i=0;i<SIDOS.length;i++){ if(favorites.indexOf(SIDOS[i].code)>-1) favSidos.push(SIDOS[i]); }
+
+  document.getElementById("favGroup").style.display=favSidos.length>0?"":"none";
+  var favHtml="";
+  for(var i=0;i<favSidos.length;i++){ favHtml+=chipHtml(favSidos[i],favSidos[i].code===selected); }
+  document.getElementById("favChips").innerHTML=favHtml;
+
+  var allHtml="";
+  for(var i=0;i<SIDOS.length;i++){ allHtml+=chipHtml(SIDOS[i],SIDOS[i].code===selected); }
+  document.getElementById("allChips").innerHTML=allHtml;
+
+  var s=findSido(selected);
+  var labels=["오늘","내일","모레"];
+  var fcHtml="";
+  for(var i=0;i<s.fc.length;i++){
+    fcHtml+='<div class="fc-card"><span class="day">'+labels[i]+'</span>'+badgeHtml(s.fc[i],"sm")+'</div>';
+  }
+
+  document.getElementById("panel").innerHTML=
+    '<div class="panel-head">'
+    +'<div><p class="city">'+s.name+'</p><p class="meta">'+s.time+' 기준 · 관내 측정소 '+s.stations+'곳 평균</p></div>'
+    +badgeHtml(s.overall,"lg")
+    +'</div>'
+    +'<div class="cards">'
+    +'<div class="card"><span class="label">PM10 (미세먼지)</span><span class="value">'+s.pm10+'<span class="unit">㎍/㎥</span></span>'+badgeHtml(s.g10,"sm")+'</div>'
+    +'<div class="card"><span class="label">PM2.5 (초미세먼지)</span><span class="value">'+s.pm25+'<span class="unit">㎍/㎥</span></span>'+badgeHtml(s.g25,"sm")+'</div>'
+    +'</div>'
+    +'<div class="fc-section"><div class="fc-head"><h3>대기질 예보</h3><span>2026-08-19 11시 발표</span></div><div class="fc-grid">'+fcHtml+'</div></div>'
+    +'<div class="guide"><h3>건강 행동요령</h3><p>'+GUIDE[s.overall]+'</p></div>';
+}
+render();
+</script>
+</body>
+</html>

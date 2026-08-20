@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AirKoreaApiError, AirKoreaConfigError, fetchForecast } from "@/lib/airkorea";
-import { getCache, setCache } from "@/lib/cache";
+import { FORECAST_TTL_MS, getCache, setCache } from "@/lib/cache";
 import { findSidoByCode } from "@/lib/sido";
 import type { ForecastData } from "@/lib/types";
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const cacheKey = `forecast:${sido.code}`;
-  const { fresh, stale } = getCache<ForecastData>(cacheKey);
+  const { fresh, stale } = getCache<ForecastData>(cacheKey, FORECAST_TTL_MS);
 
   if (fresh) {
     return NextResponse.json(fresh);
