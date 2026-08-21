@@ -1,3 +1,4 @@
+import https from "node:https";
 import type { AirQualityData, ForecastData, ForecastDay, Grade, SidoMeta } from "./types";
 import { gradeFromPm10, gradeFromPm25, worseGrade } from "./grade";
 import { forecastRegionsOf } from "./sido";
@@ -11,6 +12,9 @@ const FORECAST_ENDPOINT =
 export class AirKoreaConfigError extends Error {}
 export class AirKoreaApiError extends Error {}
 
+// data.go.kr에서 발급하는 "Encoding" 서비스키는 이미 URL 인코딩되어 있다(%2B, %2F, %3D 등 포함).
+// URLSearchParams에 그대로 넣으면 %가 다시 인코딩되어(%25...) 인증에 실패하므로,
+// 다른 파라미터와 분리해 쿼리스트링에 그대로(인코딩하지 않고) 붙여야 한다.
 function getServiceKey(): string {
   const key = process.env.AIRKOREA_SERVICE_KEY;
   if (!key || key.includes("여기에")) {
@@ -43,10 +47,29 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 에어코리아 API 서버(apis.data.go.kr)는 Node의 내장 fetch(undici)와의 연결이 거의 항상 지연·정지되어
+// 타임아웃이 발생하는 반면, node:https 코어 모듈로는 즉시 정상 응답한다. 따라서 fetch 대신 https를 직접 사용한다.
+function httpsGetText(url: string, timeoutMs: number): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf-8") });
+      });
+      res.on("error", reject);
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error("timeout"));
+    });
+    req.on("error", reject);
+  });
+}
+
 // 에어코리아 원천 서버는 과부하 시 HTTP 200과 함께 정상 응답 봉투가 아닌
 // {"OpenAPI_ServiceResponse":{"cmmMsgHeader":{"errMsg":"SERVICETIMEOUT_ERROR"...}}} 를 반환한다.
-// 즉 res.ok 만으로는 성공을 판단할 수 없어, 본문 봉투 종류까지 확인한 뒤 재시도해야 한다.
-// fetch에는 기본 타임아웃이 없으므로(무한 대기) 요청마다 명시적으로 타임아웃을 건다.
+// 즉 status만으로는 성공을 판단할 수 없어, 본문 봉투 종류까지 확인한 뒤 재시도해야 한다.
+// 요청마다 명시적으로 타임아웃을 건다.
 export interface RetryBudget {
   attempts: number;
   timeoutMs: number;
@@ -58,55 +81,93 @@ export const FAST_BUDGET: RetryBudget = { attempts: 2, timeoutMs: 5000, delayMs:
 /** 배치 수집 경로: 사용자가 기다리지 않으므로 끈질기게 재시도한다. */
 export const THOROUGH_BUDGET: RetryBudget = { attempts: 4, timeoutMs: 8000, delayMs: 700 };
 
-interface AirKoreaEnvelope {
-  response?: {
-    header?: { resultCode?: string; resultMsg?: string };
-    body?: { items?: unknown };
-  };
-  OpenAPI_ServiceResponse?: {
-    cmmMsgHeader?: { errMsg?: string; returnAuthMsg?: string; returnReasonCode?: string };
-  };
-}
-
 /** 인증키/파라미터 오류 등 재시도해도 결과가 같은 오류 코드 */
 const NON_RETRYABLE_REASON_CODES = new Set(["20", "22", "30", "31", "32"]);
+
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function extractTagValue(xml: string, tag: string): string | null {
+  const match = xml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+  return match ? decodeXmlEntities(match[1].trim()) : null;
+}
+
+function extractBlocks(xml: string, tag: string): string[] {
+  const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "g");
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) blocks.push(match[1]);
+  return blocks;
+}
+
+/** 각 item은 자식 요소를 갖지 않는 평평한(flat) 태그로만 구성되어 있어 일반 XML 파서 없이도 안전하게 파싱 가능하다. */
+function parseFlatTags(xml: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const selfClosingRe = /<([a-zA-Z0-9_]+)\s*\/>/g;
+  let match: RegExpExecArray | null;
+  while ((match = selfClosingRe.exec(xml))) {
+    result[match[1]] = "";
+  }
+  const tagRe = /<([a-zA-Z0-9_]+)>([\s\S]*?)<\/\1>/g;
+  while ((match = tagRe.exec(xml))) {
+    result[match[1]] = decodeXmlEntities(match[2].trim());
+  }
+  return result;
+}
 
 async function requestItems(
   endpoint: string,
   params: URLSearchParams,
   budget: RetryBudget
 ): Promise<any[]> {
-  const url = `${endpoint}?${params.toString()}`;
+  // returnType=json 요청은 data.go.kr의 JSON 변환 계층에서 자주 SERVICETIMEOUT_ERROR를 반환하므로
+  // 원천 XML 응답을 그대로 파싱한다.
+  // serviceKey는 이미 인코딩된 값이므로 URLSearchParams.toString()의 재인코딩을 피해 직접 붙인다.
+  const url = `${endpoint}?serviceKey=${getServiceKey()}&${params.toString()}`;
   let lastMessage = "에어코리아 API 서버 응답이 지연되고 있습니다.";
 
   for (let attempt = 1; attempt <= budget.attempts; attempt++) {
     try {
-      const res = await fetch(url, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(budget.timeoutMs),
-      });
+      const res = await httpsGetText(url, budget.timeoutMs);
 
-      if (!res.ok) {
+      if (res.status < 200 || res.status >= 300) {
         lastMessage = `에어코리아 API 응답 오류 (status: ${res.status})`;
         if (res.status < 500) throw new AirKoreaApiError(lastMessage); // 4xx는 재시도 무의미
       } else {
-        const json = (await res.json().catch(() => null)) as AirKoreaEnvelope | null;
-        const fault = json?.OpenAPI_ServiceResponse?.cmmMsgHeader;
+        const body = res.body;
+        // 게이트웨이 오류(예: SERVICETIMEOUT_ERROR)는 returnType 설정과 무관하게 항상 JSON으로 내려오고,
+        // 정상 응답만 요청한 형식(XML)을 따른다. 두 형식을 모두 확인해야 한다.
+        const jsonFault = (() => {
+          try {
+            return JSON.parse(body)?.OpenAPI_ServiceResponse?.cmmMsgHeader ?? null;
+          } catch {
+            return null;
+          }
+        })();
 
-        if (fault) {
-          lastMessage = `에어코리아 API 오류: ${fault.errMsg ?? fault.returnAuthMsg ?? "알 수 없는 오류"}`;
-          if (fault.returnReasonCode && NON_RETRYABLE_REASON_CODES.has(fault.returnReasonCode)) {
+        if (jsonFault) {
+          const { errMsg, returnAuthMsg, returnReasonCode } = jsonFault as {
+            errMsg?: string;
+            returnAuthMsg?: string;
+            returnReasonCode?: string;
+          };
+          lastMessage = `에어코리아 API 오류: ${errMsg ?? returnAuthMsg ?? "알 수 없는 오류"}`;
+          if (returnReasonCode && NON_RETRYABLE_REASON_CODES.has(returnReasonCode)) {
             throw new AirKoreaApiError(lastMessage);
           }
-        } else if (json?.response) {
-          const header = json.response.header;
-          if (header?.resultCode && header.resultCode !== "00") {
-            throw new AirKoreaApiError(
-              `에어코리아 API 오류: ${header.resultMsg ?? "알 수 없는 오류"}`
-            );
+        } else if (body.includes("<response>")) {
+          const resultCode = extractTagValue(body, "resultCode");
+          if (resultCode && resultCode !== "00") {
+            const resultMsg = extractTagValue(body, "resultMsg");
+            throw new AirKoreaApiError(`에어코리아 API 오류: ${resultMsg ?? "알 수 없는 오류"}`);
           }
-          const items = json.response.body?.items;
-          return Array.isArray(items) ? items : [];
+          return extractBlocks(body, "item").map(parseFlatTags);
         } else {
           lastMessage = "에어코리아 API 응답 형식을 해석할 수 없습니다.";
         }
@@ -135,8 +196,6 @@ export async function fetchRealtimeMeasurement(
   budget: RetryBudget = FAST_BUDGET
 ): Promise<AirQualityData> {
   const params = new URLSearchParams({
-    serviceKey: getServiceKey(),
-    returnType: "json",
     numOfRows: "100",
     pageNo: "1",
     sidoName: sido.apiSidoName,
@@ -225,8 +284,6 @@ async function getForecastItems(
   if (fresh) return fresh;
 
   const params = new URLSearchParams({
-    serviceKey: getServiceKey(),
-    returnType: "json",
     numOfRows: "100",
     pageNo: "1",
     searchDate,

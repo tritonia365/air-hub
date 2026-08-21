@@ -12,7 +12,7 @@
    ```bash
    cp .env.local.example .env.local
    ```
-   `.env.local`을 열어 공공데이터포털(data.go.kr)에서 발급받은 에어코리아 서비스키(Decoding 키)를 `AIRKOREA_SERVICE_KEY`에 입력합니다.
+   `.env.local`을 열어 공공데이터포털(data.go.kr)에서 발급받은 에어코리아 서비스키(Encoding 키)를 `AIRKOREA_SERVICE_KEY`에 입력합니다.
 3. 개발 서버 실행
    ```bash
    npm run dev
