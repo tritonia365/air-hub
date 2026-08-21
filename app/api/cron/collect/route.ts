@@ -9,6 +9,8 @@ import { setCache } from "@/lib/cache";
 import { SIDO_LIST } from "@/lib/sido";
 import type { SidoMeta } from "@/lib/types";
 
+// node:https를 사용하므로 Edge 런타임에서는 동작하지 않는다.
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

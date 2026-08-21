@@ -4,6 +4,10 @@ import { FORECAST_TTL_MS, getCache, setCache } from "@/lib/cache";
 import { findSidoByCode } from "@/lib/sido";
 import type { ForecastData } from "@/lib/types";
 
+// node:https를 사용하므로 Edge 런타임에서는 동작하지 않는다.
+export const runtime = "nodejs";
+export const maxDuration = 15;
+
 export async function GET(request: NextRequest) {
   const sidoCode = request.nextUrl.searchParams.get("sido");
   if (!sidoCode) {

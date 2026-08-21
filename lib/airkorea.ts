@@ -76,8 +76,13 @@ export interface RetryBudget {
   delayMs: number;
 }
 
-/** 사용자 요청 경로: 최악의 경우에도 ~11초 안에 에러 UI로 떨어지도록 짧게 잡는다. */
-export const FAST_BUDGET: RetryBudget = { attempts: 2, timeoutMs: 5000, delayMs: 600 };
+/**
+ * 사용자 요청 경로: Vercel Hobby 플랜의 서버리스 함수 실행 제한(10초)에 걸리지 않도록
+ * 최악의 경우(4500+300+4500=9300ms)에도 여유를 두고 에러 UI로 떨어지게 짧게 잡는다.
+ * 원천 서버 자체가 과부하 시 수 초씩 응답이 늘어지므로 너무 짧게 잡으면(예: 4초) 오히려
+ * 정상 응답도 재시도로 몰아 실패율이 올라간다 — 실측 후 이 값으로 조정함.
+ */
+export const FAST_BUDGET: RetryBudget = { attempts: 2, timeoutMs: 4500, delayMs: 300 };
 /** 배치 수집 경로: 사용자가 기다리지 않으므로 끈질기게 재시도한다. */
 export const THOROUGH_BUDGET: RetryBudget = { attempts: 4, timeoutMs: 8000, delayMs: 700 };
 

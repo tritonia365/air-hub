@@ -1,7 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const CACHE_DIR = path.join(process.cwd(), "data", "cache");
+// Vercel 서버리스 함수는 배포 파일시스템이 읽기 전용이고 /tmp만 쓰기 가능하므로,
+// process.cwd() 하위 경로를 쓰면 프로덕션에서 매번 조용히 실패한다.
+const CACHE_DIR = path.join(os.tmpdir(), "air-hub-cache");
 
 /** 실시간 측정치: 원천이 매시 정각 갱신되므로 20분이면 신선도(최대 1시간) 요건 충족 */
 export const REALTIME_TTL_MS = 20 * 60 * 1000;
